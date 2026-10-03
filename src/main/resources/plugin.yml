@@ -7,9 +7,12 @@ description: Registra y consulta (estilo CoreProtect) los ítems sacados de las 
 commands:
   gravelogs:
     description: Consulta los logs de tumbas
-    aliases: [gl, gravelog]
+    aliases: [gl, gravelog, graves]
     usage: /gravelogs lookup r:<radio> t:<tiempo> u:<jugador> a:<accion>
 permissions:
   gravelogs.use:
     description: Permite usar /gravelogs
+    default: op
+  gravelogs.reload:
+    description: Permite usar /gravelogs reload
     default: op

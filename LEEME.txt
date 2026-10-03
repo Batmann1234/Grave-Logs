@@ -27,3 +27,8 @@ MENSAJES Y PREFIJO
 Edita plugins/GraveLogs/messages.yml (se crea al iniciar el servidor). Ahi cambias el prefijo
 ("prefix") y todos los mensajes. Usa & para colores (&a, &c...) y &#RRGGBB para colores hex.
 Despues ejecuta /gravelogs reload. Si borras el archivo, se regenera con los valores por defecto.
+
+RELOAD
+/gravelogs reload  (alias: /gl reload y /graves reload)  -> recarga config.yml y messages.yml
+Permiso: gravelogs.reload (por defecto solo OP). Tambien funciona desde la consola.
+Nota: si otro plugin ya usa el alias /graves, usa /gl o /gravelogs.

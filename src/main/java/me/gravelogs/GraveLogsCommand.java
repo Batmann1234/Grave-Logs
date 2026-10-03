@@ -55,6 +55,10 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             case "page", "p" -> page(sender, args);
             case "status" -> status(sender);
             case "reload" -> {
+                if (!sender.hasPermission("gravelogs.reload")) {
+                    sender.sendMessage(msg().get("no-permission"));
+                    return true;
+                }
                 plugin.reloadConfig();
                 msg().reload();
                 sender.sendMessage(msg().get("reloaded"));

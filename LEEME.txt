@@ -8,7 +8,7 @@ GraveLogs (dentro esta GraveLogs.jar).
 Opcion B (en tu PC): instala JDK 21 y Maven, abre esta carpeta y ejecuta build.bat
 (o "mvn clean package"). El jar queda en target/GraveLogs.jar.
 
-IMPORTANTE: en pom.xml cambia <axgraves.version> por la version de AxGraves de tu servidor.
+Ya NO hace falta indicar la version de AxGraves: el plugin se engancha a el en tiempo de ejecucion.
 
 INSTALACION
 Copia GraveLogs.jar a la carpeta plugins/ (junto con AxGraves) y reinicia el servidor.

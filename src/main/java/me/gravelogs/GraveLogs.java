@@ -21,7 +21,9 @@ public final class GraveLogs extends JavaPlugin {
             return;
         }
 
-        getServer().getPluginManager().registerEvents(new GraveListener(this, writer, database), this);
+        GraveListener listener = new GraveListener(this, writer, database);
+        getServer().getPluginManager().registerEvents(listener, this);
+        listener.registerAxGraves();
 
         PluginCommand cmd = getCommand("gravelogs");
         if (cmd != null) {

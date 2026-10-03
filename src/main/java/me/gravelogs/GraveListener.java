@@ -1,13 +1,11 @@
 package me.gravelogs;
 
-import com.artillexstudios.axgraves.api.events.GraveInteractEvent;
-import com.artillexstudios.axgraves.api.events.GraveOpenEvent;
-import com.artillexstudios.axgraves.grave.Grave;
 import me.gravelogs.Database.Entry;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -19,11 +17,16 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.Plugin;
 
+import java.io.File;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.jar.JarFile;
 
 public final class GraveListener implements Listener {
 
@@ -63,10 +66,10 @@ public final class GraveListener implements Listener {
     // ---------------------------------------------------------------
 
     /** El jugador abre el menú de la tumba. */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onGraveOpen(GraveOpenEvent event) {
-        Player player = event.getPlayer();
-        GraveInfo info = info(event.getGrave());
+    private void handleOpen(Event event) {
+        Player player = player(event);
+        if (player == null) return;
+        GraveInfo info = info(player, call(event, "getGrave"));
 
         // Esperamos 1 tick a que el menú esté realmente abierto.
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -79,12 +82,12 @@ public final class GraveListener implements Listener {
     }
 
     /** El jugador interactúa con la tumba (abrir/recoger). Detectamos "recoger todo". */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onGraveInteract(GraveInteractEvent event) {
+    private void handleInteract(Event event) {
         if (!plugin.getConfig().getBoolean("log-collect", true)) return;
 
-        Player player = event.getPlayer();
-        GraveInfo info = info(event.getGrave());
+        Player player = player(event);
+        if (player == null) return;
+        GraveInfo info = info(player, call(event, "getGrave"));
         Map<ItemStack, Integer> before = count(player.getInventory());
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -98,6 +101,51 @@ public final class GraveListener implements Listener {
                 record("RECOGIO", player, info, e.getKey(), e.getValue());
             }
         }, 2L);
+    }
+
+    /** Se engancha a los eventos de AxGraves sin necesidad de compilar contra su API. */
+    public void registerAxGraves() {
+        Plugin ax = Bukkit.getPluginManager().getPlugin("AxGraves");
+        if (ax == null) {
+            plugin.getLogger().severe("AxGraves no está instalado: GraveLogs no registrará nada.");
+            return;
+        }
+        hook(ax, "GraveOpenEvent", this::handleOpen);
+        hook(ax, "GraveInteractEvent", this::handleInteract);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void hook(Plugin ax, String simpleName, Consumer<Event> handler) {
+        Class<?> clazz = findClass(ax, simpleName);
+        if (clazz == null || !Event.class.isAssignableFrom(clazz)) {
+            plugin.getLogger().warning("No se encontró el evento " + simpleName + " en AxGraves.");
+            return;
+        }
+        Bukkit.getPluginManager().registerEvent((Class<? extends Event>) clazz, this, EventPriority.MONITOR,
+                (listener, event) -> {
+                    if (clazz.isInstance(event)) handler.accept(event);
+                }, plugin, true);
+        plugin.getLogger().info("Enganchado a " + clazz.getName());
+    }
+
+    /** Busca la clase dentro del jar de AxGraves, sea cual sea su paquete en esa versión. */
+    private Class<?> findClass(Plugin ax, String simpleName) {
+        try {
+            File file = new File(ax.getClass().getProtectionDomain().getCodeSource().getLocation().toURI());
+            try (JarFile jar = new JarFile(file)) {
+                var entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    String name = entries.nextElement().getName();
+                    if (name.toLowerCase().contains("axgraves") && name.endsWith("/" + simpleName + ".class")) {
+                        String className = name.substring(0, name.length() - 6).replace('/', '.');
+                        return Class.forName(className, false, ax.getClass().getClassLoader());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Error buscando " + simpleName + ": " + e.getMessage());
+        }
+        return null;
     }
 
     // ---------------------------------------------------------------
@@ -206,20 +254,45 @@ public final class GraveListener implements Listener {
         return sb.toString();
     }
 
-    /*
-     * ⚠ Si al compilar te marca error aquí, tu versión de AxGraves llama distinto
-     * a estos métodos. Es el único sitio donde se usa la clase Grave.
-     */
-    private static GraveInfo info(Grave grave) {
-        String owner = "desconocido";
-        OfflinePlayer op = grave.getOwner();
-        if (op != null && op.getName() != null) owner = op.getName();
+    // ---------------------------------------------------------------
+    // Lectura de datos de AxGraves por reflexión
+    // ---------------------------------------------------------------
 
-        Location l = grave.getLocation();
-        String world = l != null && l.getWorld() != null ? l.getWorld().getName() : "desconocido";
-        int x = l != null ? l.getBlockX() : 0;
-        int y = l != null ? l.getBlockY() : 0;
-        int z = l != null ? l.getBlockZ() : 0;
-        return new GraveInfo(owner, world, x, y, z);
+    /** Llama al primer método sin argumentos que exista con alguno de esos nombres. */
+    private static Object call(Object target, String... names) {
+        if (target == null) return null;
+        for (String name : names) {
+            try {
+                Method m = target.getClass().getMethod(name);
+                return m.invoke(target);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    private static Player player(Event event) {
+        Object o = call(event, "getPlayer");
+        return o instanceof Player p ? p : null;
+    }
+
+    private static GraveInfo info(Player player, Object grave) {
+        String owner = "desconocido";
+        Object o = call(grave, "getOwner", "getPlayer", "getOwnerName", "getPlayerName",
+                "getOwnerUUID", "getOwnerUuid", "getUuid", "getUUID");
+        if (o instanceof OfflinePlayer op) {
+            if (op.getName() != null) owner = op.getName();
+        } else if (o instanceof UUID id) {
+            String n = Bukkit.getOfflinePlayer(id).getName();
+            if (n != null) owner = n;
+        } else if (o instanceof String str) {
+            owner = str;
+        }
+
+        // Si no se puede leer la ubicación de la tumba, se usa la del jugador (está a pocos bloques).
+        Object lo = call(grave, "getLocation");
+        Location l = lo instanceof Location loc ? loc : player.getLocation();
+        String world = l.getWorld() != null ? l.getWorld().getName() : "desconocido";
+        return new GraveInfo(owner, world, l.getBlockX(), l.getBlockY(), l.getBlockZ());
     }
 }

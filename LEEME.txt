@@ -32,3 +32,11 @@ RELOAD
 /gravelogs reload  (alias: /gl reload y /graves reload)  -> recarga config.yml y messages.yml
 Permiso: gravelogs.reload (por defecto solo OP). Tambien funciona desde la consola.
 Nota: si otro plugin ya usa el alias /graves, usa /gl o /gravelogs.
+
+FILTRAR POR ITEM
+/gl lookup r:20 include:*_sword        -> solo espadas
+/gl lookup r:20 include:netherite_sword,*_pickaxe
+/gl lookup r:20 include:*netherite*    -> todo lo que contenga netherite
+/gl lookup r:20 exclude:cobblestone,*_dirt
+Se puede combinar con r:, t:, u: y a:. * es comodin; sin * es el nombre exacto del material.
+Con include solo salen registros con item (las aperturas "abrio" no tienen item y se ocultan).

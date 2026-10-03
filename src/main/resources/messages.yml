@@ -55,3 +55,10 @@ help:
   - "&b/{label} status &7- diagnóstico del plugin"
   - "&b/{label} reload &7- recarga config.yml y messages.yml"
   - "&7Ejemplo: &f/{label} lookup r:20 t:2h a:saco"
+
+# Líneas de ayuda de los filtros de ítems (se muestran después de "help")
+help-filters:
+  - "&7  include: solo mostrar estos ítems, ej: include:netherite_sword,*_pickaxe"
+  - "&7  exclude: ocultar estos ítems, ej: exclude:cobblestone,*_dirt"
+  - "&7  Usa * como comodín: &f*_sword &7(todas las espadas), &f*netherite* &7(todo lo de netherite)"
+  - "&7  Sin * se busca el nombre exacto del ítem. Separa varios con comas."

@@ -72,6 +72,9 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         for (String line : msg().getList("help", "label", label)) {
             sender.sendMessage(line);
         }
+        for (String line : msg().getList("help-filters", "label", label)) {
+            sender.sendMessage(line);
+        }
     }
 
     private void lookup(CommandSender sender, String[] args) {
@@ -85,6 +88,8 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         String user = null;
         String action = null;
         int max = plugin.getConfig().getInt("max-radius", 100);
+        List<String> include = new ArrayList<>();
+        List<String> exclude = new ArrayList<>();
 
         for (int i = 1; i < args.length; i++) {
             String[] kv = args[i].split(":", 2);
@@ -113,6 +118,8 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
                     }
                 }
                 case "u", "usuario" -> user = kv[1];
+                case "i", "include" -> include.addAll(parseList(kv[1]));
+                case "e", "exclude" -> exclude.addAll(parseList(kv[1]));
                 case "a", "accion" -> {
                     action = normalizeAction(kv[1]);
                     if (action == null) {
@@ -132,7 +139,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(msg().get("searching"));
 
         database.query(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
-                radius, since, user, action, results -> {
+                radius, since, user, action, include, exclude, results -> {
                     lastResults.put(player.getUniqueId(), results);
                     if (results.isEmpty()) {
                         player.sendMessage(msg().get("no-results"));
@@ -219,6 +226,15 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
     // Utilidades
     // ---------------------------------------------------------------
 
+    private static List<String> parseList(String input) {
+        List<String> out = new ArrayList<>();
+        for (String part : input.split(",")) {
+            String t = part.trim();
+            if (!t.isEmpty()) out.add(t);
+        }
+        return out;
+    }
+
     private static long parseTime(String input) {
         Matcher m = TIME.matcher(input.toLowerCase(Locale.ROOT));
         long total = 0;
@@ -266,7 +282,9 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             }
         } else if (args.length > 1 && args[0].equalsIgnoreCase("lookup")) {
             for (String s : List.of("r:10", "r:25", "r:50", "t:1h", "t:1d", "t:7d",
-                    "u:", "a:saco", "a:abrio", "a:recogio")) {
+                    "u:", "a:saco", "a:abrio", "a:recogio",
+                    "include:*_sword", "include:*_pickaxe", "include:*netherite*", "include:*_helmet,*_chestplate",
+                    "exclude:cobblestone")) {
                 if (s.startsWith(args[args.length - 1].toLowerCase(Locale.ROOT))) out.add(s);
             }
         }

@@ -72,7 +72,7 @@ public final class Database {
 
     /** Busca en un cubo de {@code radius} bloques. Los callbacks se ejecutan en el hilo principal. */
     public void query(String world, int cx, int cy, int cz, int radius, long since,
-                      String player, String action,
+                      String player, String action, List<String> include, List<String> exclude,
                       Consumer<List<Entry>> callback, Consumer<Throwable> onError) {
         executor.execute(() -> {
             try {
@@ -81,6 +81,12 @@ public final class Database {
                         + "AND x BETWEEN ? AND ? AND y BETWEEN ? AND ? AND z BETWEEN ? AND ? AND time>=?");
                 if (player != null) sql.append(" AND LOWER(player)=LOWER(?)");
                 if (action != null) sql.append(" AND action=?");
+                if (!include.isEmpty()) {
+                    sql.append(" AND item IS NOT NULL AND (").append(likeClause(include.size())).append(")");
+                }
+                if (!exclude.isEmpty()) {
+                    sql.append(" AND (item IS NULL OR NOT (").append(likeClause(exclude.size())).append("))");
+                }
                 sql.append(" ORDER BY time DESC LIMIT 1000");
 
                 try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
@@ -95,6 +101,8 @@ public final class Database {
                     ps.setLong(i++, since);
                     if (player != null) ps.setString(i++, player);
                     if (action != null) ps.setString(i++, action);
+                    for (String pattern : include) ps.setString(i++, toLike(pattern));
+                    for (String pattern : exclude) ps.setString(i++, toLike(pattern));
 
                     try (ResultSet rs = ps.executeQuery()) {
                         while (rs.next()) {
@@ -111,6 +119,25 @@ public final class Database {
                 Bukkit.getScheduler().runTask(plugin, () -> onError.accept(t));
             }
         });
+    }
+
+    /** Compara solo el nombre del material (lo que hay antes del primer espacio del campo item). */
+    private static String likeClause(int count) {
+        String one = "SUBSTR(item, 1, INSTR(item || ' ', ' ') - 1) LIKE ? ESCAPE '\\'";
+        StringBuilder sb = new StringBuilder();
+        for (int n = 0; n < count; n++) {
+            if (n > 0) sb.append(" OR ");
+            sb.append(one);
+        }
+        return sb.toString();
+    }
+
+    /** "minecraft:*_sword" -> "%\\_SWORD". El * es comodín; sin * se busca el nombre exacto. */
+    private static String toLike(String pattern) {
+        String p = pattern.trim().toUpperCase(java.util.Locale.ROOT);
+        if (p.startsWith("MINECRAFT:")) p = p.substring("MINECRAFT:".length());
+        p = p.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        return p.replace("*", "%");
     }
 
     /** Cuenta todos los registros guardados. */

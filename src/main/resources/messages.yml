@@ -1,0 +1,57 @@
+# Usa códigos de color con & (ej: &a verde, &c rojo, &l negrita) y colores hex con &#RRGGBB.
+# {prefix} se reemplaza por el prefijo de abajo. Los textos entre llaves como {player} son variables, no los borres.
+# Después de editar este archivo usa /gravelogs reload
+
+prefix: "&3[GraveLogs] &r"
+
+no-permission: "{prefix}&cNo tienes permiso para usar este comando."
+only-player: "{prefix}&cEste comando solo se puede usar dentro del juego."
+reloaded: "{prefix}&aConfiguración y mensajes recargados."
+
+invalid-parameter: "{prefix}&cParámetro inválido: &f{param}"
+unknown-parameter: "{prefix}&cParámetro desconocido: &f{param}"
+invalid-radius: "{prefix}&cRadio inválido: &f{value}"
+radius-range: "{prefix}&cEl radio debe estar entre 1 y {max}."
+invalid-time: "{prefix}&cTiempo inválido: &f{value} &7(usa por ejemplo 30m, 2h, 7d)"
+invalid-action: "{prefix}&cAcción inválida. Usa: saco, abrio o recogio."
+
+searching: "{prefix}&7Buscando..."
+no-results: "{prefix}&cNo se encontraron registros de tumbas en esa zona."
+query-error: "{prefix}&cError al consultar la base de datos: {error}"
+
+no-search: "{prefix}&cPrimero haz una búsqueda con /gravelogs lookup."
+invalid-page: "{prefix}&cNúmero de página inválido."
+page-range: "{prefix}&cLa página debe estar entre 1 y {pages}."
+page-header: "&3----- GraveLogs &7(página {page}/{pages} | {total} resultados) &3-----"
+page-hint: "&7Usa &f/gravelogs page {next} &7para ver más."
+
+# Variables: {ago} {player} {action} {owner} {x} {y} {z}
+result-line: "&7{ago} &f- &b{player} &f{action} &7(tumba de {owner}) &8{x}/{y}/{z}"
+
+# Variables: {amount} {item}
+actions:
+  SACO: "sacó &e{amount}x {item}"
+  RECOGIO: "recogió &e{amount}x {item}"
+  ABRIO: "abrió la tumba"
+
+yes: "&aSí"
+no: "&cNO"
+status-header: "&3----- GraveLogs: estado -----"
+status-open: "&7Evento abrir tumba enganchado: {hooked} &7(recibidos: &f{count}&7)"
+status-interact: "&7Evento interactuar enganchado: {hooked} &7(recibidos: &f{count}&7)"
+status-problem: "&7Último problema: &f{problem}"
+status-records: "&7Registros en la base de datos: &f{total}"
+status-db-error: "&cError leyendo la base de datos: {error}"
+
+# Variable: {label} = comando usado
+help:
+  - "&3----- GraveLogs -----"
+  - "&b/{label} lookup r:<radio> t:<tiempo> u:<jugador> a:<accion>"
+  - "&7  r: radio en bloques (por defecto 10)"
+  - "&7  t: tiempo hacia atrás, ej: 30m, 2h, 7d, 1d12h (por defecto 1d)"
+  - "&7  u: jugador que sacó/abrió (opcional)"
+  - "&7  a: saco, abrio o recogio (opcional)"
+  - "&b/{label} page <n> &7- ver otra página de resultados"
+  - "&b/{label} status &7- diagnóstico del plugin"
+  - "&b/{label} reload &7- recarga config.yml y messages.yml"
+  - "&7Ejemplo: &f/{label} lookup r:20 t:2h a:saco"

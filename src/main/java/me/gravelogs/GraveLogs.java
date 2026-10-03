@@ -7,10 +7,12 @@ public final class GraveLogs extends JavaPlugin {
 
     private LogWriter writer;
     private Database database;
+    private Messages messages;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        this.messages = new Messages(this);
         this.writer = new LogWriter(this);
 
         try {
@@ -32,6 +34,10 @@ public final class GraveLogs extends JavaPlugin {
             cmd.setTabCompleter(handler);
         }
         getLogger().info("GraveLogs activado.");
+    }
+
+    public Messages getMessages() {
+        return messages;
     }
 
     @Override

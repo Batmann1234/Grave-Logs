@@ -22,3 +22,8 @@ USO (permiso: gravelogs.use, por defecto solo OP)
 /gravelogs page <n>   ver mas resultados
 Alias: /gl, /gravelog
 Ejemplo: /gl lookup r:20 t:2h a:saco
+
+MENSAJES Y PREFIJO
+Edita plugins/GraveLogs/messages.yml (se crea al iniciar el servidor). Ahi cambias el prefijo
+("prefix") y todos los mensajes. Usa & para colores (&a, &c...) y &#RRGGBB para colores hex.
+Despues ejecuta /gravelogs reload. Si borras el archivo, se regenera con los valores por defecto.

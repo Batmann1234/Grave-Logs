@@ -35,10 +35,14 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         this.listener = listener;
     }
 
+    private Messages msg() {
+        return plugin.getMessages();
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("gravelogs.use")) {
-            sender.sendMessage("§cNo tienes permiso para usar este comando.");
+            sender.sendMessage(msg().get("no-permission"));
             return true;
         }
         if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
@@ -50,26 +54,25 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             case "lookup", "l" -> lookup(sender, args);
             case "page", "p" -> page(sender, args);
             case "status" -> status(sender);
+            case "reload" -> {
+                plugin.reloadConfig();
+                msg().reload();
+                sender.sendMessage(msg().get("reloaded"));
+            }
             default -> help(sender, label);
         }
         return true;
     }
 
     private void help(CommandSender sender, String label) {
-        sender.sendMessage("§3----- GraveLogs -----");
-        sender.sendMessage("§b/" + label + " lookup r:<radio> t:<tiempo> u:<jugador> a:<accion>");
-        sender.sendMessage("§7  r: radio en bloques (por defecto 10)");
-        sender.sendMessage("§7  t: tiempo hacia atrás, ej: 30m, 2h, 7d, 1d12h (por defecto 1d)");
-        sender.sendMessage("§7  u: jugador que sacó/abrió (opcional)");
-        sender.sendMessage("§7  a: saco, abrio o recogio (opcional)");
-        sender.sendMessage("§b/" + label + " page <n> §7- ver otra página de resultados");
-        sender.sendMessage("§b/" + label + " status §7- diagnóstico del plugin");
-        sender.sendMessage("§7Ejemplo: §f/" + label + " lookup r:20 t:2h a:saco");
+        for (String line : msg().getList("help", "label", label)) {
+            sender.sendMessage(line);
+        }
     }
 
     private void lookup(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("§cEste comando solo se puede usar dentro del juego.");
+            sender.sendMessage(msg().get("only-player"));
             return;
         }
 
@@ -82,7 +85,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         for (int i = 1; i < args.length; i++) {
             String[] kv = args[i].split(":", 2);
             if (kv.length < 2 || kv[1].isEmpty()) {
-                sender.sendMessage("§cParámetro inválido: §f" + args[i]);
+                sender.sendMessage(msg().get("invalid-parameter", "param", args[i]));
                 return;
             }
             switch (kv[0].toLowerCase(Locale.ROOT)) {
@@ -90,18 +93,18 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
                     try {
                         radius = Integer.parseInt(kv[1]);
                     } catch (NumberFormatException e) {
-                        sender.sendMessage("§cRadio inválido: §f" + kv[1]);
+                        sender.sendMessage(msg().get("invalid-radius", "value", kv[1]));
                         return;
                     }
                     if (radius < 1 || radius > max) {
-                        sender.sendMessage("§cEl radio debe estar entre 1 y " + max + ".");
+                        sender.sendMessage(msg().get("radius-range", "max", String.valueOf(max)));
                         return;
                     }
                 }
                 case "t", "tiempo" -> {
                     seconds = parseTime(kv[1]);
                     if (seconds <= 0) {
-                        sender.sendMessage("§cTiempo inválido: §f" + kv[1] + " §7(usa por ejemplo 30m, 2h, 7d)");
+                        sender.sendMessage(msg().get("invalid-time", "value", kv[1]));
                         return;
                     }
                 }
@@ -109,12 +112,12 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
                 case "a", "accion" -> {
                     action = normalizeAction(kv[1]);
                     if (action == null) {
-                        sender.sendMessage("§cAcción inválida. Usa: saco, abrio o recogio.");
+                        sender.sendMessage(msg().get("invalid-action"));
                         return;
                     }
                 }
                 default -> {
-                    sender.sendMessage("§cParámetro desconocido: §f" + kv[0]);
+                    sender.sendMessage(msg().get("unknown-parameter", "param", kv[0]));
                     return;
                 }
             }
@@ -122,41 +125,25 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
 
         Location loc = player.getLocation();
         long since = System.currentTimeMillis() - seconds * 1000L;
-        sender.sendMessage("§7Buscando...");
+        sender.sendMessage(msg().get("searching"));
 
         database.query(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(),
                 radius, since, user, action, results -> {
                     lastResults.put(player.getUniqueId(), results);
                     if (results.isEmpty()) {
-                        player.sendMessage("§cNo se encontraron registros de tumbas en esa zona.");
+                        player.sendMessage(msg().get("no-results"));
                         return;
                     }
                     showPage(player, results, 1);
                 },
-                t -> player.sendMessage("§cError al consultar la base de datos: " + t));
-    }
-
-    private void status(CommandSender sender) {
-        sender.sendMessage("§3----- GraveLogs: estado -----");
-        sender.sendMessage("§7Evento abrir tumba enganchado: " + yesNo(listener.isOpenHooked())
-                + " §7(recibidos: §f" + listener.getOpenEvents() + "§7)");
-        sender.sendMessage("§7Evento interactuar enganchado: " + yesNo(listener.isInteractHooked())
-                + " §7(recibidos: §f" + listener.getInteractEvents() + "§7)");
-        sender.sendMessage("§7Último problema: §f" + listener.getLastProblem());
-        database.count(
-                total -> sender.sendMessage("§7Registros en la base de datos: §f" + total),
-                t -> sender.sendMessage("§cError leyendo la base de datos: " + t));
-    }
-
-    private static String yesNo(boolean value) {
-        return value ? "§aSí" : "§cNO";
+                t -> player.sendMessage(msg().get("query-error", "error", String.valueOf(t))));
     }
 
     private void page(CommandSender sender, String[] args) {
         UUID key = sender instanceof Player p ? p.getUniqueId() : CONSOLE;
         List<Entry> results = lastResults.get(key);
         if (results == null || results.isEmpty()) {
-            sender.sendMessage("§cPrimero haz una búsqueda con /gravelogs lookup.");
+            sender.sendMessage(msg().get("no-search"));
             return;
         }
         int page = 1;
@@ -164,7 +151,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             try {
                 page = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
-                sender.sendMessage("§cNúmero de página inválido.");
+                sender.sendMessage(msg().get("invalid-page"));
                 return;
             }
         }
@@ -174,11 +161,13 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
     private void showPage(CommandSender sender, List<Entry> results, int page) {
         int pages = (int) Math.ceil(results.size() / (double) PER_PAGE);
         if (page < 1 || page > pages) {
-            sender.sendMessage("§cLa página debe estar entre 1 y " + pages + ".");
+            sender.sendMessage(msg().get("page-range", "pages", String.valueOf(pages)));
             return;
         }
-        sender.sendMessage("§3----- GraveLogs §7(página " + page + "/" + pages + " | "
-                + results.size() + " resultados) §3-----");
+        sender.sendMessage(msg().get("page-header",
+                "page", String.valueOf(page),
+                "pages", String.valueOf(pages),
+                "total", String.valueOf(results.size())));
 
         int from = (page - 1) * PER_PAGE;
         int to = Math.min(from + PER_PAGE, results.size());
@@ -186,18 +175,40 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage(format(results.get(i)));
         }
         if (page < pages) {
-            sender.sendMessage("§7Usa §f/gravelogs page " + (page + 1) + " §7para ver más.");
+            sender.sendMessage(msg().get("page-hint", "next", String.valueOf(page + 1)));
         }
     }
 
     private String format(Entry e) {
-        String what = switch (e.action()) {
-            case "SACO" -> "sacó §e" + e.amount() + "x " + e.item();
-            case "RECOGIO" -> "recogió §e" + e.amount() + "x " + e.item();
-            default -> "abrió la tumba";
-        };
-        return "§7" + ago(e.time()) + " §f- §b" + e.player() + " §f" + what
-                + " §7(tumba de " + e.owner() + ") §8" + e.x() + "/" + e.y() + "/" + e.z();
+        String actionText = msg().get("actions." + e.action(),
+                "amount", String.valueOf(e.amount()),
+                "item", String.valueOf(e.item()));
+        return msg().get("result-line",
+                "ago", ago(e.time()),
+                "player", e.player(),
+                "action", actionText,
+                "owner", e.owner(),
+                "x", String.valueOf(e.x()),
+                "y", String.valueOf(e.y()),
+                "z", String.valueOf(e.z()));
+    }
+
+    private void status(CommandSender sender) {
+        sender.sendMessage(msg().get("status-header"));
+        sender.sendMessage(msg().get("status-open",
+                "hooked", yesNo(listener.isOpenHooked()),
+                "count", String.valueOf(listener.getOpenEvents())));
+        sender.sendMessage(msg().get("status-interact",
+                "hooked", yesNo(listener.isInteractHooked()),
+                "count", String.valueOf(listener.getInteractEvents())));
+        sender.sendMessage(msg().get("status-problem", "problem", listener.getLastProblem()));
+        database.count(
+                total -> sender.sendMessage(msg().get("status-records", "total", String.valueOf(total))),
+                t -> sender.sendMessage(msg().get("status-db-error", "error", String.valueOf(t))));
+    }
+
+    private String yesNo(boolean value) {
+        return msg().get(value ? "yes" : "no");
     }
 
     // ---------------------------------------------------------------
@@ -246,7 +257,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
-            for (String s : List.of("lookup", "page", "status", "help")) {
+            for (String s : List.of("lookup", "page", "status", "reload", "help")) {
                 if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
             }
         } else if (args.length > 1 && args[0].equalsIgnoreCase("lookup")) {

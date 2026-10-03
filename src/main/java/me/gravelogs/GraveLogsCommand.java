@@ -142,6 +142,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
                 + " §7(recibidos: §f" + listener.getOpenEvents() + "§7)");
         sender.sendMessage("§7Evento interactuar enganchado: " + yesNo(listener.isInteractHooked())
                 + " §7(recibidos: §f" + listener.getInteractEvents() + "§7)");
+        sender.sendMessage("§7Último problema: §f" + listener.getLastProblem());
         database.count(
                 total -> sender.sendMessage("§7Registros en la base de datos: §f" + total),
                 t -> sender.sendMessage("§cError leyendo la base de datos: " + t));

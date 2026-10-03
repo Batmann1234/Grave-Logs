@@ -57,6 +57,9 @@ public final class GraveListener implements Listener {
     private final Database database;
     private final Map<UUID, Session> sessions = new HashMap<>();
 
+    private volatile String lastProblem = "ninguno";
+    public String getLastProblem() { return lastProblem; }
+
     private volatile boolean openHooked;
     private volatile boolean interactHooked;
     private final AtomicInteger openEvents = new AtomicInteger();
@@ -79,10 +82,14 @@ public final class GraveListener implements Listener {
 
     /** El jugador abre el menú de la tumba. */
     private void handleOpen(Event event) {
-        openEvents.incrementAndGet();
+        if (openEvents.incrementAndGet() == 1) {
+            dump("GraveOpenEvent", event);
+            dump("Grave", call(event, "getGrave"));
+        }
         Player player = player(event);
         if (player == null) {
-            plugin.getLogger().warning("GraveOpenEvent recibido pero no se pudo leer el jugador (getPlayer).");
+            lastProblem = "GraveOpenEvent: no se pudo leer el jugador";
+            plugin.getLogger().warning("GraveOpenEvent recibido pero no se pudo leer el jugador.");
             return;
         }
         GraveInfo info = info(player, call(event, "getGrave"));
@@ -143,6 +150,7 @@ public final class GraveListener implements Listener {
                     try {
                         if (clazz.isInstance(event)) handler.accept(event);
                     } catch (Throwable t) {
+                        lastProblem = simpleName + ": " + t;
                         plugin.getLogger().log(Level.SEVERE, "Error procesando " + simpleName, t);
                     }
                 }, plugin, true);
@@ -284,10 +292,21 @@ public final class GraveListener implements Listener {
     private static Object call(Object target, String... names) {
         if (target == null) return null;
         for (String name : names) {
+            for (Class<?> c = target.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+                try {
+                    Method m = c.getDeclaredMethod(name);
+                    m.setAccessible(true);
+                    return m.invoke(target);
+                } catch (NoSuchMethodException ignored) {
+                } catch (Throwable t) {
+                    break;
+                }
+            }
             try {
                 Method m = target.getClass().getMethod(name);
+                m.setAccessible(true);
                 return m.invoke(target);
-            } catch (Exception ignored) {
+            } catch (Throwable ignored) {
             }
         }
         return null;
@@ -295,7 +314,34 @@ public final class GraveListener implements Listener {
 
     private static Player player(Event event) {
         Object o = call(event, "getPlayer");
-        return o instanceof Player p ? p : null;
+        if (o instanceof Player p) return p;
+        for (Method m : event.getClass().getMethods()) {
+            if (m.getParameterCount() == 0 && Player.class.isAssignableFrom(m.getReturnType())) {
+                try {
+                    m.setAccessible(true);
+                    Object r = m.invoke(event);
+                    if (r instanceof Player p) return p;
+                } catch (Throwable ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Escribe en consola los métodos disponibles (solo la primera vez), para diagnóstico. */
+    private void dump(String label, Object o) {
+        if (o == null) {
+            plugin.getLogger().info("[debug] " + label + ": null");
+            return;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (Method m : o.getClass().getMethods()) {
+            if (m.getParameterCount() == 0 && m.getDeclaringClass() != Object.class
+                    && !m.getDeclaringClass().getName().startsWith("org.bukkit")) {
+                sb.append(m.getName()).append("():").append(m.getReturnType().getSimpleName()).append(", ");
+            }
+        }
+        plugin.getLogger().info("[debug] " + label + " (" + o.getClass().getName() + "): " + sb);
     }
 
     private static GraveInfo info(Player player, Object grave) {

@@ -27,7 +27,7 @@ public final class GraveLogs extends JavaPlugin {
 
         PluginCommand cmd = getCommand("gravelogs");
         if (cmd != null) {
-            GraveLogsCommand handler = new GraveLogsCommand(this, database);
+            GraveLogsCommand handler = new GraveLogsCommand(this, database, listener);
             cmd.setExecutor(handler);
             cmd.setTabCompleter(handler);
         }

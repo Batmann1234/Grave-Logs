@@ -25,8 +25,10 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.jar.JarFile;
+import java.util.logging.Level;
 
 public final class GraveListener implements Listener {
 
@@ -55,6 +57,16 @@ public final class GraveListener implements Listener {
     private final Database database;
     private final Map<UUID, Session> sessions = new HashMap<>();
 
+    private volatile boolean openHooked;
+    private volatile boolean interactHooked;
+    private final AtomicInteger openEvents = new AtomicInteger();
+    private final AtomicInteger interactEvents = new AtomicInteger();
+
+    public boolean isOpenHooked() { return openHooked; }
+    public boolean isInteractHooked() { return interactHooked; }
+    public int getOpenEvents() { return openEvents.get(); }
+    public int getInteractEvents() { return interactEvents.get(); }
+
     public GraveListener(GraveLogs plugin, LogWriter writer, Database database) {
         this.plugin = plugin;
         this.writer = writer;
@@ -67,9 +79,14 @@ public final class GraveListener implements Listener {
 
     /** El jugador abre el menú de la tumba. */
     private void handleOpen(Event event) {
+        openEvents.incrementAndGet();
         Player player = player(event);
-        if (player == null) return;
+        if (player == null) {
+            plugin.getLogger().warning("GraveOpenEvent recibido pero no se pudo leer el jugador (getPlayer).");
+            return;
+        }
         GraveInfo info = info(player, call(event, "getGrave"));
+        record("ABRIO", player, info, null, 0);
 
         // Esperamos 1 tick a que el menú esté realmente abierto.
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -77,12 +94,12 @@ public final class GraveListener implements Listener {
             Inventory top = player.getOpenInventory().getTopInventory();
             if (top.getType() == InventoryType.CRAFTING || top.getSize() == 0) return;
             sessions.put(player.getUniqueId(), new Session(top, info, count(top)));
-            record("ABRIO", player, info, null, 0);
         }, 1L);
     }
 
     /** El jugador interactúa con la tumba (abrir/recoger). Detectamos "recoger todo". */
     private void handleInteract(Event event) {
+        interactEvents.incrementAndGet();
         if (!plugin.getConfig().getBoolean("log-collect", true)) return;
 
         Player player = player(event);
@@ -110,22 +127,27 @@ public final class GraveListener implements Listener {
             plugin.getLogger().severe("AxGraves no está instalado: GraveLogs no registrará nada.");
             return;
         }
-        hook(ax, "GraveOpenEvent", this::handleOpen);
-        hook(ax, "GraveInteractEvent", this::handleInteract);
+        openHooked = hook(ax, "GraveOpenEvent", this::handleOpen);
+        interactHooked = hook(ax, "GraveInteractEvent", this::handleInteract);
     }
 
     @SuppressWarnings("unchecked")
-    private void hook(Plugin ax, String simpleName, Consumer<Event> handler) {
+    private boolean hook(Plugin ax, String simpleName, Consumer<Event> handler) {
         Class<?> clazz = findClass(ax, simpleName);
         if (clazz == null || !Event.class.isAssignableFrom(clazz)) {
             plugin.getLogger().warning("No se encontró el evento " + simpleName + " en AxGraves.");
-            return;
+            return false;
         }
         Bukkit.getPluginManager().registerEvent((Class<? extends Event>) clazz, this, EventPriority.MONITOR,
                 (listener, event) -> {
-                    if (clazz.isInstance(event)) handler.accept(event);
+                    try {
+                        if (clazz.isInstance(event)) handler.accept(event);
+                    } catch (Throwable t) {
+                        plugin.getLogger().log(Level.SEVERE, "Error procesando " + simpleName, t);
+                    }
                 }, plugin, true);
         plugin.getLogger().info("Enganchado a " + clazz.getName());
+        return true;
     }
 
     /** Busca la clase dentro del jar de AxGraves, sea cual sea su paquete en esa versión. */

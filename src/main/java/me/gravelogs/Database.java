@@ -15,6 +15,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.logging.Level;
 
 /** Base de datos SQLite (incluida en Paper). Todo se ejecuta en un hilo aparte. */
 public final class Database {
@@ -63,48 +64,66 @@ public final class Database {
                 ps.setString(9, e.item());
                 ps.setInt(10, e.amount());
                 ps.executeUpdate();
-            } catch (SQLException ex) {
-                plugin.getLogger().warning("Error guardando en la base de datos: " + ex.getMessage());
+            } catch (Throwable ex) {
+                plugin.getLogger().log(Level.SEVERE, "Error guardando en la base de datos", ex);
             }
         });
     }
 
-    /** Busca en un cubo de {@code radius} bloques. El callback se ejecuta en el hilo principal. */
+    /** Busca en un cubo de {@code radius} bloques. Los callbacks se ejecutan en el hilo principal. */
     public void query(String world, int cx, int cy, int cz, int radius, long since,
-                      String player, String action, Consumer<List<Entry>> callback) {
+                      String player, String action,
+                      Consumer<List<Entry>> callback, Consumer<Throwable> onError) {
         executor.execute(() -> {
-            List<Entry> list = new ArrayList<>();
-            StringBuilder sql = new StringBuilder("SELECT * FROM entries WHERE world=? "
-                    + "AND x BETWEEN ? AND ? AND y BETWEEN ? AND ? AND z BETWEEN ? AND ? AND time>=?");
-            if (player != null) sql.append(" AND LOWER(player)=LOWER(?)");
-            if (action != null) sql.append(" AND action=?");
-            sql.append(" ORDER BY time DESC LIMIT 1000");
+            try {
+                List<Entry> list = new ArrayList<>();
+                StringBuilder sql = new StringBuilder("SELECT * FROM entries WHERE world=? "
+                        + "AND x BETWEEN ? AND ? AND y BETWEEN ? AND ? AND z BETWEEN ? AND ? AND time>=?");
+                if (player != null) sql.append(" AND LOWER(player)=LOWER(?)");
+                if (action != null) sql.append(" AND action=?");
+                sql.append(" ORDER BY time DESC LIMIT 1000");
 
-            try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
-                int i = 1;
-                ps.setString(i++, world);
-                ps.setInt(i++, cx - radius);
-                ps.setInt(i++, cx + radius);
-                ps.setInt(i++, cy - radius);
-                ps.setInt(i++, cy + radius);
-                ps.setInt(i++, cz - radius);
-                ps.setInt(i++, cz + radius);
-                ps.setLong(i++, since);
-                if (player != null) ps.setString(i++, player);
-                if (action != null) ps.setString(i++, action);
+                try (PreparedStatement ps = connection.prepareStatement(sql.toString())) {
+                    int i = 1;
+                    ps.setString(i++, world);
+                    ps.setInt(i++, cx - radius);
+                    ps.setInt(i++, cx + radius);
+                    ps.setInt(i++, cy - radius);
+                    ps.setInt(i++, cy + radius);
+                    ps.setInt(i++, cz - radius);
+                    ps.setInt(i++, cz + radius);
+                    ps.setLong(i++, since);
+                    if (player != null) ps.setString(i++, player);
+                    if (action != null) ps.setString(i++, action);
 
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        list.add(new Entry(rs.getLong("id"), rs.getLong("time"), rs.getString("action"),
-                                rs.getString("player"), rs.getString("owner"), rs.getString("world"),
-                                rs.getInt("x"), rs.getInt("y"), rs.getInt("z"),
-                                rs.getString("item"), rs.getInt("amount")));
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            list.add(new Entry(rs.getLong("id"), rs.getLong("time"), rs.getString("action"),
+                                    rs.getString("player"), rs.getString("owner"), rs.getString("world"),
+                                    rs.getInt("x"), rs.getInt("y"), rs.getInt("z"),
+                                    rs.getString("item"), rs.getInt("amount")));
+                        }
                     }
                 }
-            } catch (SQLException ex) {
-                plugin.getLogger().warning("Error consultando la base de datos: " + ex.getMessage());
+                Bukkit.getScheduler().runTask(plugin, () -> callback.accept(list));
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE, "Error consultando la base de datos", t);
+                Bukkit.getScheduler().runTask(plugin, () -> onError.accept(t));
             }
-            Bukkit.getScheduler().runTask(plugin, () -> callback.accept(list));
+        });
+    }
+
+    /** Cuenta todos los registros guardados. */
+    public void count(Consumer<Integer> callback, Consumer<Throwable> onError) {
+        executor.execute(() -> {
+            try (Statement st = connection.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM entries")) {
+                int total = rs.next() ? rs.getInt(1) : 0;
+                Bukkit.getScheduler().runTask(plugin, () -> callback.accept(total));
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.SEVERE, "Error contando registros", t);
+                Bukkit.getScheduler().runTask(plugin, () -> onError.accept(t));
+            }
         });
     }
 

@@ -26,11 +26,13 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
 
     private final GraveLogs plugin;
     private final Database database;
+    private final GraveListener listener;
     private final Map<UUID, List<Entry>> lastResults = new HashMap<>();
 
-    public GraveLogsCommand(GraveLogs plugin, Database database) {
+    public GraveLogsCommand(GraveLogs plugin, Database database, GraveListener listener) {
         this.plugin = plugin;
         this.database = database;
+        this.listener = listener;
     }
 
     @Override
@@ -47,6 +49,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         switch (args[0].toLowerCase(Locale.ROOT)) {
             case "lookup", "l" -> lookup(sender, args);
             case "page", "p" -> page(sender, args);
+            case "status" -> status(sender);
             default -> help(sender, label);
         }
         return true;
@@ -60,6 +63,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§7  u: jugador que sacó/abrió (opcional)");
         sender.sendMessage("§7  a: saco, abrio o recogio (opcional)");
         sender.sendMessage("§b/" + label + " page <n> §7- ver otra página de resultados");
+        sender.sendMessage("§b/" + label + " status §7- diagnóstico del plugin");
         sender.sendMessage("§7Ejemplo: §f/" + label + " lookup r:20 t:2h a:saco");
     }
 
@@ -128,7 +132,23 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
                         return;
                     }
                     showPage(player, results, 1);
-                });
+                },
+                t -> player.sendMessage("§cError al consultar la base de datos: " + t));
+    }
+
+    private void status(CommandSender sender) {
+        sender.sendMessage("§3----- GraveLogs: estado -----");
+        sender.sendMessage("§7Evento abrir tumba enganchado: " + yesNo(listener.isOpenHooked())
+                + " §7(recibidos: §f" + listener.getOpenEvents() + "§7)");
+        sender.sendMessage("§7Evento interactuar enganchado: " + yesNo(listener.isInteractHooked())
+                + " §7(recibidos: §f" + listener.getInteractEvents() + "§7)");
+        database.count(
+                total -> sender.sendMessage("§7Registros en la base de datos: §f" + total),
+                t -> sender.sendMessage("§cError leyendo la base de datos: " + t));
+    }
+
+    private static String yesNo(boolean value) {
+        return value ? "§aSí" : "§cNO";
     }
 
     private void page(CommandSender sender, String[] args) {
@@ -225,7 +245,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
-            for (String s : List.of("lookup", "page", "help")) {
+            for (String s : List.of("lookup", "page", "status", "help")) {
                 if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
             }
         } else if (args.length > 1 && args[0].equalsIgnoreCase("lookup")) {

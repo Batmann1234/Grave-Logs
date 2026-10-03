@@ -1,0 +1,11 @@
+# Mostrar también los logs en la consola del servidor
+console: false
+
+# Guardar además un archivo de texto por día en plugins/GraveLogs/logs/
+file-logs: true
+
+# Registrar cuando alguien recoge la tumba entera (sin abrir el menú)
+log-collect: true
+
+# Radio máximo permitido en /gravelogs lookup
+max-radius: 100

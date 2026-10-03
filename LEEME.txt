@@ -1,0 +1,24 @@
+GRAVELOGS - Logs de tumbas (AxGraves) para Paper 1.21.7
+
+COMO OBTENER EL .JAR
+Opcion A (sin instalar nada): sube esta carpeta a un repositorio de GitHub, ve a la
+pestaña "Actions", espera a que termine "Build GraveLogs" y descarga el artefacto
+GraveLogs (dentro esta GraveLogs.jar).
+
+Opcion B (en tu PC): instala JDK 21 y Maven, abre esta carpeta y ejecuta build.bat
+(o "mvn clean package"). El jar queda en target/GraveLogs.jar.
+
+IMPORTANTE: en pom.xml cambia <axgraves.version> por la version de AxGraves de tu servidor.
+
+INSTALACION
+Copia GraveLogs.jar a la carpeta plugins/ (junto con AxGraves) y reinicia el servidor.
+
+USO (permiso: gravelogs.use, por defecto solo OP)
+/gravelogs lookup r:<radio> t:<tiempo> u:<jugador> a:<accion>
+  r: radio en bloques (por defecto 10, maximo en config.yml)
+  t: tiempo hacia atras: 30m, 2h, 7d, 1d12h (por defecto 1d)
+  u: filtrar por jugador (opcional)
+  a: saco | abrio | recogio (opcional)
+/gravelogs page <n>   ver mas resultados
+Alias: /gl, /gravelog
+Ejemplo: /gl lookup r:20 t:2h a:saco

@@ -1,0 +1,15 @@
+name: GraveLogs
+version: '${project.version}'
+main: me.gravelogs.GraveLogs
+api-version: '1.21'
+depend: [AxGraves]
+description: Registra y consulta (estilo CoreProtect) los ítems sacados de las tumbas de AxGraves.
+commands:
+  gravelogs:
+    description: Consulta los logs de tumbas
+    aliases: [gl, gravelog]
+    usage: /gravelogs lookup r:<radio> t:<tiempo> u:<jugador> a:<accion>
+permissions:
+  gravelogs.use:
+    description: Permite usar /gravelogs
+    default: op

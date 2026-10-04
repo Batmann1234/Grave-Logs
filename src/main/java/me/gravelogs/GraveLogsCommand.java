@@ -1,7 +1,12 @@
 package me.gravelogs;
 
 import me.gravelogs.Database.Entry;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
+import net.kyori.adventure.text.event.HoverEvent;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -10,6 +15,7 @@ import org.bukkit.entity.Player;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -20,7 +26,6 @@ import java.util.regex.Pattern;
 
 public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
 
-    private static final int PER_PAGE = 10;
     private static final Pattern TIME = Pattern.compile("(\\d+)([wdhms])");
     private static final UUID CONSOLE = new UUID(0, 0);
 
@@ -54,6 +59,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             case "lookup", "l" -> lookup(sender, args);
             case "page", "p" -> page(sender, args);
             case "status" -> status(sender);
+            case "tp", "teleport" -> teleport(sender, args);
             case "reload" -> {
                 if (!sender.hasPermission("gravelogs.reload")) {
                     sender.sendMessage(msg().get("no-permission"));
@@ -169,8 +175,13 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         showPage(sender, results, page);
     }
 
+    private int perPage() {
+        return Math.max(1, plugin.getConfig().getInt("results-per-page", 7));
+    }
+
     private void showPage(CommandSender sender, List<Entry> results, int page) {
-        int pages = (int) Math.ceil(results.size() / (double) PER_PAGE);
+        int perPage = perPage();
+        int pages = (int) Math.ceil(results.size() / (double) perPage);
         if (page < 1 || page > pages) {
             sender.sendMessage(msg().get("page-range", "pages", String.valueOf(pages)));
             return;
@@ -180,28 +191,117 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
                 "pages", String.valueOf(pages),
                 "total", String.valueOf(results.size())));
 
-        int from = (page - 1) * PER_PAGE;
-        int to = Math.min(from + PER_PAGE, results.size());
+        boolean canTp = sender instanceof Player && sender.hasPermission("gravelogs.teleport");
+        int from = (page - 1) * perPage;
+        int to = Math.min(from + perPage, results.size());
         for (int i = from; i < to; i++) {
-            sender.sendMessage(format(results.get(i)));
+            Entry e = results.get(i);
+            sender.sendMessage(mainLine(e));
+            sender.sendMessage(locationLine(e, canTp));
         }
-        if (page < pages) {
-            sender.sendMessage(msg().get("page-hint", "next", String.valueOf(page + 1)));
+        if (pages > 1) {
+            sender.sendMessage(footer(page, pages));
         }
     }
 
-    private String format(Entry e) {
+    /** Línea 1: hace cuánto, quién y qué hizo. */
+    private Component mainLine(Entry e) {
         String actionText = msg().get("actions." + e.action(),
                 "amount", String.valueOf(e.amount()),
                 "item", String.valueOf(e.item()));
-        return msg().get("result-line",
+        return msg().component("result-main",
                 "ago", ago(e.time()),
+                "symbol", msg().get("symbols." + e.action()),
                 "player", e.player(),
-                "action", actionText,
-                "owner", e.owner(),
-                "x", String.valueOf(e.x()),
-                "y", String.valueOf(e.y()),
-                "z", String.valueOf(e.z()));
+                "action", actionText);
+    }
+
+    /** Línea 2: coordenadas (con clic para teletransportarse). */
+    private Component locationLine(Entry e, boolean canTp) {
+        String[] vars = {
+                "x", String.valueOf(e.x()), "y", String.valueOf(e.y()), "z", String.valueOf(e.z()),
+                "world", e.world(), "owner", e.owner()};
+        Component line = msg().component("result-location", vars);
+        if (canTp) {
+            line = line
+                    .clickEvent(ClickEvent.runCommand("/gravelogs tp " + e.world() + " "
+                            + e.x() + " " + e.y() + " " + e.z()))
+                    .hoverEvent(HoverEvent.showText(msg().component("teleport-hover", vars)));
+        }
+        return line;
+    }
+
+    /** Pie de página clicable: « 1 / 2 / 3 ». */
+    private Component footer(int page, int pages) {
+        List<Integer> shown = new ArrayList<>();
+        if (pages <= 9) {
+            for (int n = 1; n <= pages; n++) shown.add(n);
+        } else {
+            shown.add(1);
+            int start = Math.max(2, page - 2);
+            int end = Math.min(pages - 1, page + 2);
+            if (start > 2) shown.add(-1);
+            for (int n = start; n <= end; n++) shown.add(n);
+            if (end < pages - 1) shown.add(-1);
+            shown.add(pages);
+        }
+
+        Component out = msg().component("page-footer-prefix")
+                .append(pageButton("page-prev", page - 1, page > 1))
+                .append(Component.text(" "));
+        for (int idx = 0; idx < shown.size(); idx++) {
+            int n = shown.get(idx);
+            if (idx > 0) out = out.append(msg().component("page-separator"));
+            if (n == -1) {
+                out = out.append(msg().component("page-ellipsis"));
+            } else if (n == page) {
+                out = out.append(msg().component("page-current", "n", String.valueOf(n)));
+            } else {
+                out = out.append(pageButton("page-number", n, true));
+            }
+        }
+        return out.append(Component.text(" ")).append(pageButton("page-next", page + 1, page < pages));
+    }
+
+    private Component pageButton(String key, int target, boolean clickable) {
+        if (!clickable) return msg().component(key + "-disabled");
+        String n = String.valueOf(target);
+        return msg().component(key, "n", n)
+                .clickEvent(ClickEvent.runCommand("/gravelogs page " + n))
+                .hoverEvent(HoverEvent.showText(msg().component("page-hover", "n", n)));
+    }
+
+    /** /gravelogs tp <mundo> <x> <y> <z> (lo ejecuta el clic en las coordenadas). */
+    private void teleport(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(msg().get("only-player"));
+            return;
+        }
+        if (!sender.hasPermission("gravelogs.teleport")) {
+            sender.sendMessage(msg().get("no-permission"));
+            return;
+        }
+        if (args.length < 5) {
+            sender.sendMessage(msg().get("tp-usage"));
+            return;
+        }
+        try {
+            int x = Integer.parseInt(args[args.length - 3]);
+            int y = Integer.parseInt(args[args.length - 2]);
+            int z = Integer.parseInt(args[args.length - 1]);
+            String worldName = String.join(" ", Arrays.asList(args).subList(1, args.length - 3));
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) {
+                sender.sendMessage(msg().get("tp-world-missing", "world", worldName));
+                return;
+            }
+            Location current = player.getLocation();
+            player.teleport(new Location(world, x + 0.5, y, z + 0.5, current.getYaw(), current.getPitch()));
+            sender.sendMessage(msg().get("tp-done", "x", String.valueOf(x), "y", String.valueOf(y),
+                    "z", String.valueOf(z), "world", worldName));
+        } catch (NumberFormatException e) {
+            sender.sendMessage(msg().get("tp-usage"));
+        }
     }
 
     private void status(CommandSender sender) {

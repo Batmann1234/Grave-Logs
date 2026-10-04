@@ -23,10 +23,33 @@ no-search: "{prefix}&cPrimero haz una búsqueda con /gravelogs lookup."
 invalid-page: "{prefix}&cNúmero de página inválido."
 page-range: "{prefix}&cLa página debe estar entre 1 y {pages}."
 page-header: "&3----- GraveLogs &7(página {page}/{pages} | {total} resultados) &3-----"
-page-hint: "&7Usa &f/gravelogs page {next} &7para ver más."
 
-# Variables: {ago} {player} {action} {owner} {x} {y} {z}
-result-line: "&7{ago} &f- &b{player} &f{action} &7(tumba de {owner}) &8{x}/{y}/{z}"
+# Cada resultado ocupa 2 líneas.
+# Línea 1 - variables: {ago} {symbol} {player} {action}
+result-main: "&7{ago} {symbol} &b{player} &f{action}&7."
+symbols:
+  SACO: "&c-"
+  RECOGIO: "&c-"
+  ABRIO: "&e*"
+# Línea 2 (clic = teletransporte) - variables: {x} {y} {z} {world} {owner}
+result-location: "&8^ &7(&3x{x}/y{y}/z{z}/{world}&7) &8(tumba de {owner})"
+teleport-hover: "&7Click para teletransportarte a &f{x} {y} {z}"
+
+# Pie de página clicable: « 1 / 2 / 3 »  (variable: {n} = número de página)
+page-footer-prefix: "&3Página "
+page-prev: "&3«"
+page-prev-disabled: "&8«"
+page-next: "&3»"
+page-next-disabled: "&8»"
+page-number: "&3{n}"
+page-current: "&f&l{n}"
+page-separator: "&8 / "
+page-ellipsis: "&8..."
+page-hover: "&7Ir a la página {n}"
+
+tp-usage: "{prefix}&cUso: /gravelogs tp <mundo> <x> <y> <z>"
+tp-world-missing: "{prefix}&cEl mundo &f{world} &cno existe."
+tp-done: "{prefix}&aTeletransportado a &f{x} {y} {z} &7({world})"
 
 # Variables: {amount} {item}
 actions:

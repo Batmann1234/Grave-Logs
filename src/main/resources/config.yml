@@ -9,3 +9,6 @@ log-collect: true
 
 # Radio máximo permitido en /gravelogs lookup
 max-radius: 100
+
+# Cuántos registros se muestran por página (cada uno ocupa 2 líneas en el chat)
+results-per-page: 7

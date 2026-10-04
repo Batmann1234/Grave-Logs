@@ -16,3 +16,6 @@ permissions:
   gravelogs.reload:
     description: Permite usar /gravelogs reload
     default: op
+  gravelogs.teleport:
+    description: Permite teletransportarse haciendo clic en los resultados
+    default: op

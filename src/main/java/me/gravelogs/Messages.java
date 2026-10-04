@@ -1,5 +1,7 @@
 package me.gravelogs;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -48,6 +50,11 @@ public final class Messages {
         String raw = config.getString(key);
         if (raw == null) raw = "&c[Falta el mensaje: " + key + "]";
         return format(raw, pairs);
+    }
+
+    /** Igual que get(), pero devuelve un Component (necesario para clics y hover). */
+    public Component component(String key, String... pairs) {
+        return LegacyComponentSerializer.legacySection().deserialize(get(key, pairs));
     }
 
     public List<String> getList(String key, String... pairs) {

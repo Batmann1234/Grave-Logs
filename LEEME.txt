@@ -51,3 +51,8 @@ Puedes omitir "lookup": /gl r:20 t:2h include:*_sword
 Tab completa: include:/exclude: con todos los items del juego (y comodines como *_sword),
 r: y t: con 1-9, u: con los jugadores conectados y a: con las acciones.
 El tiempo se muestra estilo CoreProtect: 0.10/m, 34.44/m, 2.50/h, 1.20/d (texto en messages.yml: time-ago).
+
+HOVER DE ITEMS
+En los resultados el item sale solo con su nombre en minusculas (totem_of_undying). Al pasar el cursor
+por encima se ve el item completo: nombre personalizado, lore y encantamientos. Los registros
+guardados con versiones anteriores solo muestran el nombre (no tienen los datos del item).

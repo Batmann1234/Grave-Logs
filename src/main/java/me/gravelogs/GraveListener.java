@@ -21,8 +21,10 @@ import org.bukkit.plugin.Plugin;
 
 import java.io.File;
 import java.lang.reflect.Method;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -232,10 +234,19 @@ public final class GraveListener implements Listener {
     // ---------------------------------------------------------------
 
     private void record(String action, Player player, GraveInfo info, ItemStack item, int amount) {
-        String itemName = item == null ? null : describe(item);
+        // Solo se guarda el nombre del material (en minúsculas); el ítem completo va aparte para el hover.
+        String itemName = item == null ? null : item.getType().name().toLowerCase(Locale.ROOT);
+        String itemData = null;
+        if (item != null) {
+            try {
+                itemData = Base64.getEncoder().encodeToString(item.serializeAsBytes());
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.WARNING, "No se pudo serializar el ítem " + itemName, t);
+            }
+        }
 
         database.insert(new Entry(0, System.currentTimeMillis(), action, player.getName(), info.owner(),
-                info.world(), info.x(), info.y(), info.z(), itemName, amount));
+                info.world(), info.x(), info.y(), info.z(), itemName, amount, itemData));
 
         if (plugin.getConfig().getBoolean("file-logs", true) || plugin.getConfig().getBoolean("console", false)) {
             String line = action + " | jugador=" + player.getName() + " | dueño=" + info.owner()

@@ -2,6 +2,7 @@ package me.gravelogs;
 
 import me.gravelogs.Database.Entry;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.TextReplacementConfig;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import org.bukkit.Bukkit;
@@ -13,10 +14,12 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -217,16 +220,47 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    /** Marca temporal que se sustituye por el nombre del ítem (con hover). */
+    private static final String ITEM_TOKEN = "\uE000";
+
     /** Línea 1: hace cuánto, quién y qué hizo. */
     private Component mainLine(Entry e) {
         String actionText = msg().get("actions." + e.action(),
                 "amount", String.valueOf(e.amount()),
-                "item", String.valueOf(e.item()));
-        return msg().component("result-main",
+                "item", ITEM_TOKEN);
+        Component line = msg().component("result-main",
                 "ago", ago(e.time()),
                 "symbol", msg().get("symbols." + e.action()),
                 "player", e.player(),
                 "action", actionText);
+        if (e.item() != null) {
+            line = line.replaceText(TextReplacementConfig.builder()
+                    .matchLiteral(ITEM_TOKEN)
+                    .replacement(itemComponent(e))
+                    .build());
+        }
+        return line;
+    }
+
+    /** Nombre del ítem en minúsculas; al pasar el cursor muestra el ítem completo (nombre, lore, encantamientos). */
+    private Component itemComponent(Entry e) {
+        Component text = Component.text(materialName(e.item()));
+        if (e.itemData() != null) {
+            try {
+                ItemStack stack = ItemStack.deserializeBytes(Base64.getDecoder().decode(e.itemData()));
+                stack.setAmount(Math.max(1, Math.min(e.amount(), stack.getMaxStackSize())));
+                text = text.hoverEvent(stack);
+            } catch (Throwable ignored) {
+                // Si no se puede leer el ítem guardado, se muestra solo el nombre.
+            }
+        }
+        return text;
+    }
+
+    /** "TOTEM_OF_UNDYING (Nombre) [2 encantamientos]" (registros viejos) -> "totem_of_undying" */
+    private static String materialName(String raw) {
+        int space = raw.indexOf(' ');
+        return (space > 0 ? raw.substring(0, space) : raw).toLowerCase(Locale.ROOT);
     }
 
     /** Línea 2: coordenadas (con clic para teletransportarse). */

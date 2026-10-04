@@ -21,7 +21,7 @@ import java.util.logging.Level;
 public final class Database {
 
     public record Entry(long id, long time, String action, String player, String owner,
-                        String world, int x, int y, int z, String item, int amount) {}
+                        String world, int x, int y, int z, String item, int amount, String itemData) {}
 
     private final GraveLogs plugin;
     private final Connection connection;
@@ -43,15 +43,22 @@ public final class Database {
                     + "world TEXT NOT NULL,"
                     + "x INTEGER NOT NULL, y INTEGER NOT NULL, z INTEGER NOT NULL,"
                     + "item TEXT,"
-                    + "amount INTEGER NOT NULL DEFAULT 0)");
+                    + "amount INTEGER NOT NULL DEFAULT 0,"
+                    + "item_data TEXT)");
             st.execute("CREATE INDEX IF NOT EXISTS idx_entries_loc ON entries (world, x, z, time)");
+            try {
+                // Bases de datos creadas con versiones anteriores no tienen esta columna.
+                st.execute("ALTER TABLE entries ADD COLUMN item_data TEXT");
+            } catch (SQLException ignored) {
+                // la columna ya existe
+            }
         }
     }
 
     public void insert(Entry e) {
         executor.execute(() -> {
-            String sql = "INSERT INTO entries (time, action, player, owner, world, x, y, z, item, amount) "
-                    + "VALUES (?,?,?,?,?,?,?,?,?,?)";
+            String sql = "INSERT INTO entries (time, action, player, owner, world, x, y, z, item, amount, item_data) "
+                    + "VALUES (?,?,?,?,?,?,?,?,?,?,?)";
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
                 ps.setLong(1, e.time());
                 ps.setString(2, e.action());
@@ -63,6 +70,7 @@ public final class Database {
                 ps.setInt(8, e.z());
                 ps.setString(9, e.item());
                 ps.setInt(10, e.amount());
+                ps.setString(11, e.itemData());
                 ps.executeUpdate();
             } catch (Throwable ex) {
                 plugin.getLogger().log(Level.SEVERE, "Error guardando en la base de datos", ex);
@@ -109,7 +117,7 @@ public final class Database {
                             list.add(new Entry(rs.getLong("id"), rs.getLong("time"), rs.getString("action"),
                                     rs.getString("player"), rs.getString("owner"), rs.getString("world"),
                                     rs.getInt("x"), rs.getInt("y"), rs.getInt("z"),
-                                    rs.getString("item"), rs.getInt("amount")));
+                                    rs.getString("item"), rs.getInt("amount"), rs.getString("item_data")));
                         }
                     }
                 }

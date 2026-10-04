@@ -44,4 +44,10 @@ Con include solo salen registros con item (las aperturas "abrio" no tienen item 
 PAGINAS Y TELETRANSPORTE
 Cada registro ocupa 2 lineas: la accion y debajo las coordenadas. Al hacer clic en las coordenadas te
 teletransportas (permiso gravelogs.teleport, por defecto OP). Abajo hay un pie de pagina clicable
-« 1 / 2 / 3 ». Registros por pagina: results-per-page en config.yml (por defecto 7).
+« 1 / 2 / 3 ». Registros por pagina: results-per-page en config.yml (por defecto 4).
+
+ATAJOS Y TAB
+Puedes omitir "lookup": /gl r:20 t:2h include:*_sword
+Tab completa: include:/exclude: con todos los items del juego (y comodines como *_sword),
+r: y t: con 1-9, u: con los jugadores conectados y a: con las acciones.
+El tiempo se muestra estilo CoreProtect: 0.10/m, 34.44/m, 2.50/h, 1.20/d (texto en messages.yml: time-ago).

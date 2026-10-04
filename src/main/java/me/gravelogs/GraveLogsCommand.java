@@ -6,6 +6,7 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -16,6 +17,9 @@ import org.bukkit.entity.Player;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,8 +59,14 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        // Atajo: /gl r:20 t:2h include:*_sword  (sin escribir "lookup")
+        if (args[0].contains(":")) {
+            lookup(sender, args, 0);
+            return true;
+        }
+
         switch (args[0].toLowerCase(Locale.ROOT)) {
-            case "lookup", "l" -> lookup(sender, args);
+            case "lookup", "l" -> lookup(sender, args, 1);
             case "page", "p" -> page(sender, args);
             case "status" -> status(sender);
             case "tp", "teleport" -> teleport(sender, args);
@@ -81,9 +91,12 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         for (String line : msg().getList("help-filters", "label", label)) {
             sender.sendMessage(line);
         }
+        for (String line : msg().getList("help-shortcut", "label", label)) {
+            sender.sendMessage(line);
+        }
     }
 
-    private void lookup(CommandSender sender, String[] args) {
+    private void lookup(CommandSender sender, String[] args, int from) {
         if (!(sender instanceof Player player)) {
             sender.sendMessage(msg().get("only-player"));
             return;
@@ -97,7 +110,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         List<String> include = new ArrayList<>();
         List<String> exclude = new ArrayList<>();
 
-        for (int i = 1; i < args.length; i++) {
+        for (int i = from; i < args.length; i++) {
             String[] kv = args[i].split(":", 2);
             if (kv.length < 2 || kv[1].isEmpty()) {
                 sender.sendMessage(msg().get("invalid-parameter", "param", args[i]));
@@ -176,7 +189,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
     }
 
     private int perPage() {
-        return Math.max(1, plugin.getConfig().getInt("results-per-page", 7));
+        return Math.max(1, plugin.getConfig().getInt("results-per-page", 4));
     }
 
     private void showPage(CommandSender sender, List<Entry> results, int page) {
@@ -365,29 +378,151 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
         };
     }
 
-    private static String ago(long time) {
-        long s = Math.max(0, (System.currentTimeMillis() - time) / 1000);
-        if (s < 60) return s + "s";
-        if (s < 3600) return (s / 60) + "m";
-        if (s < 86400) return (s / 3600) + "h " + ((s % 3600) / 60) + "m";
-        return (s / 86400) + "d " + ((s % 86400) / 3600) + "h";
+    /** Tiempo estilo CoreProtect: 0.10/m, 34.44/m, 2.50/h, 1.20/d */
+    private String ago(long time) {
+        double minutes = Math.max(0, System.currentTimeMillis() - time) / 60000.0;
+        String value;
+        if (minutes < 60) {
+            value = String.format(Locale.ROOT, "%.2f/m", minutes);
+        } else if (minutes < 1440) {
+            value = String.format(Locale.ROOT, "%.2f/h", minutes / 60.0);
+        } else {
+            value = String.format(Locale.ROOT, "%.2f/d", minutes / 1440.0);
+        }
+        return msg().get("time-ago", "time", value);
+    }
+
+    // ---------------------------------------------------------------
+    // Autocompletado (Tab)
+    // ---------------------------------------------------------------
+
+    private static final List<String> PARAM_KEYS = List.of("r:", "t:", "u:", "a:", "include:", "exclude:");
+    private static final List<String> WILDCARDS = List.of("*_sword", "*_pickaxe", "*_axe", "*_shovel", "*_hoe",
+            "*_helmet", "*_chestplate", "*_leggings", "*_boots", "*netherite*", "*diamond*");
+    private static final List<String> ITEMS = buildItems();
+
+    /** Todos los ítems del juego en minúsculas (diamond_sword, netherite_ingot...). */
+    private static List<String> buildItems() {
+        List<String> list = new ArrayList<>();
+        for (Material m : Material.values()) {
+            if (m.isLegacy() || m.isAir() || !m.isItem()) continue;
+            list.add(m.name().toLowerCase(Locale.ROOT));
+        }
+        Collections.sort(list);
+        return list;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
+        if (args.length == 0) return out;
+        String current = args[args.length - 1];
+
+        boolean implicit = args[0].contains(":");
+        boolean explicit = args.length >= 2
+                && (args[0].equalsIgnoreCase("lookup") || args[0].equalsIgnoreCase("l"));
+        boolean paramMode = explicit || implicit || (args.length == 1 && current.contains(":"));
+
+        if (paramMode) {
+            completeParam(current, args, explicit ? 1 : 0, out);
+            return out;
+        }
         if (args.length == 1) {
+            String lower = current.toLowerCase(Locale.ROOT);
             for (String s : List.of("lookup", "page", "status", "reload", "help")) {
-                if (s.startsWith(args[0].toLowerCase(Locale.ROOT))) out.add(s);
+                if (s.startsWith(lower)) out.add(s);
             }
-        } else if (args.length > 1 && args[0].equalsIgnoreCase("lookup")) {
-            for (String s : List.of("r:10", "r:25", "r:50", "t:1h", "t:1d", "t:7d",
-                    "u:", "a:saco", "a:abrio", "a:recogio",
-                    "include:*_sword", "include:*_pickaxe", "include:*netherite*", "include:*_helmet,*_chestplate",
-                    "exclude:cobblestone")) {
-                if (s.startsWith(args[args.length - 1].toLowerCase(Locale.ROOT))) out.add(s);
+            for (String s : PARAM_KEYS) {
+                if (s.startsWith(lower)) out.add(s);
             }
         }
         return out;
+    }
+
+    private void completeParam(String current, String[] args, int from, List<String> out) {
+        int colon = current.indexOf(':');
+
+        // Todavía está escribiendo la clave (r:, t:, u:, a:, include:, exclude:)
+        if (colon < 0) {
+            Set<String> used = new HashSet<>();
+            for (int i = from; i < args.length - 1; i++) {
+                int c = args[i].indexOf(':');
+                if (c > 0) used.add(canon(args[i].substring(0, c)));
+            }
+            String lower = current.toLowerCase(Locale.ROOT);
+            for (String key : PARAM_KEYS) {
+                if (key.startsWith(lower) && !used.contains(canon(key.substring(0, key.length() - 1)))) {
+                    out.add(key);
+                }
+            }
+            return;
+        }
+
+        String keyText = current.substring(0, colon + 1);
+        String value = current.substring(colon + 1);
+
+        switch (canon(current.substring(0, colon))) {
+            case "r" -> {
+                if (value.isEmpty()) {
+                    for (int n = 1; n <= 9; n++) out.add(keyText + n);
+                } else if (value.matches("\\d{1,2}")) {
+                    for (int n = 0; n <= 9; n++) out.add(keyText + value + n);
+                }
+            }
+            case "t" -> {
+                if (value.isEmpty()) {
+                    for (int n = 1; n <= 9; n++) out.add(keyText + n);
+                } else if (value.matches("\\d+")) {
+                    for (String unit : List.of("s", "m", "h", "d", "w")) out.add(keyText + value + unit);
+                } else if (value.matches("(\\d+[smhdw])+")) {
+                    for (int n = 1; n <= 9; n++) out.add(keyText + value + n);
+                }
+            }
+            case "u" -> {
+                String lower = value.toLowerCase(Locale.ROOT);
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    if (p.getName().toLowerCase(Locale.ROOT).startsWith(lower)) out.add(keyText + p.getName());
+                }
+            }
+            case "a" -> {
+                String lower = value.toLowerCase(Locale.ROOT);
+                for (String a : List.of("saco", "abrio", "recogio")) {
+                    if (a.startsWith(lower)) out.add(keyText + a);
+                }
+            }
+            case "include", "exclude" -> completeItems(keyText, value, out);
+            default -> {
+            }
+        }
+    }
+
+    /** Completa el último ítem de una lista separada por comas (include:diamond_sword,net...). */
+    private void completeItems(String keyText, String value, List<String> out) {
+        int comma = value.lastIndexOf(',');
+        String head = comma >= 0 ? value.substring(0, comma + 1) : "";
+        String frag = value.substring(comma + 1).toLowerCase(Locale.ROOT);
+        if (frag.startsWith("minecraft:")) frag = frag.substring("minecraft:".length());
+
+        for (String wildcard : WILDCARDS) {
+            if (wildcard.startsWith(frag)) out.add(keyText + head + wildcard);
+        }
+        for (String item : ITEMS) {
+            if (frag.isEmpty() || item.startsWith(frag) || item.contains("_" + frag)) {
+                out.add(keyText + head + item);
+            }
+        }
+    }
+
+    /** Nombre canónico de cada parámetro (acepta alias). */
+    private static String canon(String key) {
+        return switch (key.toLowerCase(Locale.ROOT)) {
+            case "r", "radio" -> "r";
+            case "t", "tiempo" -> "t";
+            case "u", "usuario" -> "u";
+            case "a", "accion" -> "a";
+            case "i", "include" -> "include";
+            case "e", "exclude" -> "exclude";
+            default -> key.toLowerCase(Locale.ROOT);
+        };
     }
 }

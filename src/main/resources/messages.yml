@@ -85,3 +85,10 @@ help-filters:
   - "&7  exclude: ocultar estos ítems, ej: exclude:cobblestone,*_dirt"
   - "&7  Usa * como comodín: &f*_sword &7(todas las espadas), &f*netherite* &7(todo lo de netherite)"
   - "&7  Sin * se busca el nombre exacto del ítem. Separa varios con comas."
+
+# Cómo se muestra el tiempo de cada registro (estilo CoreProtect). {time} = 34.44/m, 2.50/h, 1.20/d
+time-ago: "{time} ago"
+
+# Atajo sin escribir "lookup" (se muestra después de la ayuda de filtros)
+help-shortcut:
+  - "&7Atajo: puedes omitir &flookup&7: &f/{label} r:20 t:2h include:*_sword"

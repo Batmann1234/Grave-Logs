@@ -12,3 +12,6 @@ max-radius: 100
 
 # Cuántos registros se muestran por página (cada uno ocupa 2 líneas en el chat)
 results-per-page: 4
+
+# Registrar también los ítems que la gente deja dentro de una tumba
+log-deposit: true

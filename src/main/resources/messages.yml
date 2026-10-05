@@ -13,7 +13,7 @@ unknown-parameter: "{prefix}&cParámetro desconocido: &f{param}"
 invalid-radius: "{prefix}&cRadio inválido: &f{value}"
 radius-range: "{prefix}&cEl radio debe estar entre 1 y {max}."
 invalid-time: "{prefix}&cTiempo inválido: &f{value} &7(usa por ejemplo 30m, 2h, 7d)"
-invalid-action: "{prefix}&cAcción inválida. Usa: saco, abrio o recogio."
+invalid-action: "{prefix}&cAcción inválida. Usa: saco, puso, abrio o recogio."
 
 searching: "{prefix}&7Buscando..."
 no-results: "{prefix}&cNo se encontraron registros de tumbas en esa zona."
@@ -30,6 +30,7 @@ result-main: "&7{ago} {symbol} &b{player} &f{action}&7."
 symbols:
   SACO: "&c-"
   RECOGIO: "&c-"
+  PUSO: "&a+"
   ABRIO: "&e*"
 # Línea 2 (clic = teletransporte) - variables: {x} {y} {z} {world} {owner}
 result-location: "&8^ &7(&3x{x}/y{y}/z{z}/{world}&7) &8(tumba de {owner})"
@@ -55,6 +56,7 @@ tp-done: "{prefix}&aTeletransportado a &f{x} {y} {z} &7({world})"
 actions:
   SACO: "sacó &e{amount}x {item}"
   RECOGIO: "recogió &e{amount}x {item}"
+  PUSO: "dejó &e{amount}x {item}"
   ABRIO: "abrió la tumba"
 
 yes: "&aSí"
@@ -73,7 +75,7 @@ help:
   - "&7  r: radio en bloques (por defecto 10)"
   - "&7  t: tiempo hacia atrás, ej: 30m, 2h, 7d, 1d12h (por defecto 1d)"
   - "&7  u: jugador que sacó/abrió (opcional)"
-  - "&7  a: saco, abrio o recogio (opcional)"
+  - "&7  a: saco, puso, abrio o recogio (opcional)"
   - "&b/{label} page <n> &7- ver otra página de resultados"
   - "&b/{label} status &7- diagnóstico del plugin"
   - "&b/{label} reload &7- recarga config.yml y messages.yml"

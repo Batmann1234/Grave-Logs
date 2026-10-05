@@ -408,6 +408,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             case "saco", "sacar", "take" -> "SACO";
             case "abrio", "abrir", "open" -> "ABRIO";
             case "recogio", "recoger", "collect" -> "RECOGIO";
+            case "puso", "poner", "depositar", "dejo", "put", "deposit" -> "PUSO";
             default -> null;
         };
     }
@@ -520,7 +521,7 @@ public final class GraveLogsCommand implements CommandExecutor, TabCompleter {
             }
             case "a" -> {
                 String lower = value.toLowerCase(Locale.ROOT);
-                for (String a : List.of("saco", "abrio", "recogio")) {
+                for (String a : List.of("saco", "puso", "abrio", "recogio")) {
                     if (a.startsWith(lower)) out.add(keyText + a);
                 }
             }

@@ -56,3 +56,12 @@ HOVER DE ITEMS
 En los resultados el item sale solo con su nombre en minusculas (totem_of_undying). Al pasar el cursor
 por encima se ve el item completo: nombre personalizado, lore y encantamientos. Los registros
 guardados con versiones anteriores solo muestran el nombre (no tienen los datos del item).
+
+VARIOS JUGADORES EN LA MISMA TUMBA
+Todos los jugadores que tienen la misma tumba abierta comparten un unico estado: cada item sacado
+se registra una sola vez y a nombre de quien lo saco (antes cada jugador comparaba por su cuenta
+y un mismo item podia salir registrado a varios).
+
+ITEMS DEJADOS EN LA TUMBA
+Tambien se registra cuando alguien deja items dentro de una tumba (accion "puso", simbolo verde +).
+Filtrar: /gl lookup r:20 a:puso   (se puede desactivar con log-deposit: false en config.yml)

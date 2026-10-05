@@ -4,6 +4,7 @@ import me.gravelogs.Database.Entry;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.HumanEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -23,6 +24,7 @@ import java.io.File;
 import java.lang.reflect.Method;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -41,23 +43,29 @@ public final class GraveListener implements Listener {
         }
     }
 
-    /** Menú de tumba que un jugador tiene abierto + su contenido anterior. */
-    private static final class Session {
+    /**
+     * Estado COMPARTIDO de un menú de tumba. Todos los jugadores que tienen la misma tumba abierta
+     * usan el mismo objeto, así un ítem sacado se registra una sola vez y a nombre de quien lo sacó.
+     */
+    private static final class Tracked {
         final Inventory inventory;
         final GraveInfo info;
-        Map<ItemStack, Integer> last;
+        Map<ItemStack, Integer> snapshot;  // contenido tras el último registro
+        Player pendingActor;               // quién hizo el último clic que aún no se ha registrado
+        int viewers;
 
-        Session(Inventory inventory, GraveInfo info, Map<ItemStack, Integer> last) {
+        Tracked(Inventory inventory, GraveInfo info, Map<ItemStack, Integer> snapshot) {
             this.inventory = inventory;
             this.info = info;
-            this.last = last;
+            this.snapshot = snapshot;
         }
     }
 
     private final GraveLogs plugin;
     private final LogWriter writer;
     private final Database database;
-    private final Map<UUID, Session> sessions = new HashMap<>();
+    private final Map<UUID, Tracked> sessions = new HashMap<>();
+    private final Map<Inventory, Tracked> byInventory = new IdentityHashMap<>();
 
     private volatile String lastProblem = "ninguno";
     public String getLastProblem() { return lastProblem; }
@@ -102,7 +110,16 @@ public final class GraveListener implements Listener {
             if (!player.isOnline()) return;
             Inventory top = player.getOpenInventory().getTopInventory();
             if (top.getType() == InventoryType.CRAFTING || top.getSize() == 0) return;
-            sessions.put(player.getUniqueId(), new Session(top, info, count(top)));
+            Tracked t = byInventory.get(top);
+            if (t == null) {
+                t = new Tracked(top, info, count(top));
+                byInventory.put(top, t);
+            }
+            Tracked previous = sessions.put(player.getUniqueId(), t);
+            if (previous != t) {
+                t.viewers++;
+                if (previous != null) release(previous);
+            }
         }, 1L);
     }
 
@@ -186,47 +203,72 @@ public final class GraveListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onClick(InventoryClickEvent event) {
-        if (event.getWhoClicked() instanceof Player player) {
-            scheduleCheck(player);
-        }
+        handleChange(event.getWhoClicked(), event.getView().getTopInventory());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDrag(InventoryDragEvent event) {
-        if (event.getWhoClicked() instanceof Player player) {
-            scheduleCheck(player);
-        }
+        handleChange(event.getWhoClicked(), event.getView().getTopInventory());
     }
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
-        Session session = sessions.get(player.getUniqueId());
-        if (session == null || session.inventory != event.getInventory()) return;
-        check(player, session);
+        Tracked t = sessions.get(player.getUniqueId());
+        if (t == null || t.inventory != event.getInventory()) return;
+        finalizeChanges(t);
         sessions.remove(player.getUniqueId());
+        release(t);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        sessions.remove(event.getPlayer().getUniqueId());
-    }
-
-    private void scheduleCheck(Player player) {
-        Session session = sessions.get(player.getUniqueId());
-        if (session == null) return;
-        Bukkit.getScheduler().runTask(plugin, () -> check(player, session));
-    }
-
-    /** Compara el contenido actual con el anterior y registra lo que falta. */
-    private void check(Player player, Session session) {
-        Map<ItemStack, Integer> now = count(session.inventory);
-        Map<ItemStack, Integer> taken = diff(session.last, now);
-
-        for (Map.Entry<ItemStack, Integer> e : taken.entrySet()) {
-            record("SACO", player, session.info, e.getKey(), e.getValue());
+        Tracked t = sessions.remove(event.getPlayer().getUniqueId());
+        if (t != null) {
+            finalizeChanges(t);
+            release(t);
         }
-        session.last = now;
+    }
+
+    private void handleChange(HumanEntity who, Inventory top) {
+        if (!(who instanceof Player player)) return;
+        Tracked t = sessions.get(player.getUniqueId());
+        if (t == null || t.inventory != top) return;
+
+        // Cuando llega un clic, todos los anteriores (de este u otro jugador) ya se aplicaron:
+        // se registran ahora, cada uno a nombre de quien lo hizo.
+        finalizeChanges(t);
+        t.pendingActor = player;
+        // El efecto de ESTE clic se aplica después del evento, así que se registra en el siguiente tick.
+        Bukkit.getScheduler().runTask(plugin, () -> finalizeChanges(t));
+    }
+
+    /** Registra lo que falta respecto al último estado, a nombre del jugador que hizo el clic pendiente. */
+    private void finalizeChanges(Tracked t) {
+        Player actor = t.pendingActor;
+        if (actor == null) return;
+
+        Map<ItemStack, Integer> now = count(t.inventory);
+        Map<ItemStack, Integer> taken = diff(t.snapshot, now);
+        for (Map.Entry<ItemStack, Integer> e : taken.entrySet()) {
+            record("SACO", actor, t.info, e.getKey(), e.getValue());
+        }
+        if (plugin.getConfig().getBoolean("log-deposit", true)) {
+            Map<ItemStack, Integer> added = diff(now, t.snapshot);
+            for (Map.Entry<ItemStack, Integer> e : added.entrySet()) {
+                record("PUSO", actor, t.info, e.getKey(), e.getValue());
+            }
+        }
+        t.snapshot = now;
+        t.pendingActor = null;
+    }
+
+    /** Un jugador menos mirando este menú; si era el último, se libera el estado compartido. */
+    private void release(Tracked t) {
+        t.viewers--;
+        if (t.viewers <= 0) {
+            byInventory.remove(t.inventory);
+        }
     }
 
     // ---------------------------------------------------------------
